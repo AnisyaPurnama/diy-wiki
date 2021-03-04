@@ -4,6 +4,7 @@
 const path = require('path');
 const util = require('util');
 const fs = require('fs');
+const async = require("async");
 
 const readFile = util.promisify(fs.readFile);
 const writeFile = util.promisify(fs.writeFile);
@@ -66,9 +67,10 @@ app.get('/api/page/:slug', async (req, res) => {
 app.post('/api/page/:slug', async (req, res) => {
   const filename = slugToPath(req.params.slug);
   try {
-
+    await writeFile(filename, fileText)
+    res.json({status: 'ok'});
   } catch (e) {
-
+    res.json({ status: 'error', message: 'Could not write page.'});
   }
 });
 
@@ -79,6 +81,14 @@ app.post('/api/page/:slug', async (req, res) => {
 //  success response: {status:'ok', pages: ['fileName', 'otherFileName']}
 //  failure response: no failure response
 app.get('/api/pages/all', async (req, res) => {
+  const fileName = await readDir(DATA_DIR);
+  try{
+    const result = fileName.map(item=> item.split('.').slice(0,-1).join('.'))
+    res.json({status:'ok', pages: result});
+  }
+  catch{
+    console.log('err');
+  }
 
 });
 
@@ -89,9 +99,38 @@ app.get('/api/pages/all', async (req, res) => {
 // hint: use the TAG_RE regular expression to search the contents of each file
 //  success response: {status:'ok', tags: ['tagName', 'otherTagName']}
 //  failure response: no failure response
-app.get('/api/tags/all', async (req, res) => {
+app.get('/api/tags/all', async (req, res) => { 
+try {
+  const reading = await readDir(DATA_DIR, 'UTF-8')
+  tagList = [];
+  const regex = new RegExp(TAG_RE);
+  let tagNames = raeding.filter(tagName => {
 
+    const filePath = slugToPath(tagName.replace('.md',''));
+    const fileContent = fs.readFileSync(filePath, 'UTF-8')
+    const  words = fileContent.split('\n')
+
+    words.forEach(word => {
+      if (regex.test(word)) {
+        word.split('').forEach(tag => tagList.push(tag.replace('#', '')))
+      }
+    });
+
+    if (regex.test(fileContent)) {
+      return true;
+    } 
+    else {
+      return false;
+    }
 });
+
+//console.log(tagList);
+jsonOK(res, {tags: tagList})
+} catch(err) {
+  res.status(400)
+};
+});
+
 
 
 // GET: '/api/tags/:tag'
@@ -100,7 +139,28 @@ app.get('/api/tags/all', async (req, res) => {
 //  success response: {status:'ok', tag: 'tagName', pages: ['tagName', 'otherTagName']}
 //  failure response: no failure response
 app.get('/api/tags/:tag', async (req, res) => {
+try {
+  const tagName = req.params.tag
+  const reading = await readDir(DATA_DIR, 'UTF-8')
+  const regex = new RegExp(TAG_RE);
 
+  let fileNames= reading.filter(fileName => {
+    const filePath = slugToPath(fileName.replace('.md', ''));
+    const fileContent = fs.readFileSync(filePath, 'UTF-8');
+      if (regex.test(fileContent)){
+        if(!fileContent.includes(`#${tagName}`)){return false};
+        return true;
+      } else {
+        return false;
+      }
+  });
+
+  fileNames = fileNames.map(file => (file.slice(0,-3)));
+
+  jsonOK(res, {tag: tagName, pages: fileNames})
+} catch(err){
+  res.status(500);
+};
 });
 
 
